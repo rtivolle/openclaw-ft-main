@@ -1,0 +1,18 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+
+# Local runtime/build artifacts
+artifacts
+app_stdout.log
+app_stderr.log
+
+# Large local assets not needed in Space image
+models
+data
+
+# Optional local caches
+.cache
+node_modules
