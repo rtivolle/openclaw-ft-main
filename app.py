@@ -1,11 +1,19 @@
 import json
 import os
 import random
+import subprocess
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+# Some Space builds intermittently miss transitive deps; recover at startup.
+try:
+    import requests  # noqa: F401
+except ModuleNotFoundError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests>=2.31.0"])
 
 import gradio as gr
 
