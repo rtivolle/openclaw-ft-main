@@ -1,0 +1,40 @@
+{
+  "contract_version": "1.0",
+  "inputs": {
+    "raw_trace_glob": "data/raw_traces/*.jsonl",
+    "raw_trace_files": [],
+    "synthetic_file": "data/train_200.jsonl",
+    "adversarial_file": "data/adversarial.jsonl"
+  },
+  "build": {
+    "target_examples": 20000,
+    "selected_examples": 200,
+    "train_examples": 180,
+    "val_examples": 20,
+    "min_examples": 100,
+    "min_example_ok": true,
+    "val_ratio": 0.1,
+    "ratios": {
+      "real": 0.6,
+      "synthetic": 0.3,
+      "adversarial": 0.1
+    },
+    "min_redaction_rate": 0.0,
+    "redaction_ok": true,
+    "redaction_rate": 0.0
+  },
+  "qc": {
+    "raw_rows": 200,
+    "rejected_malformed": 0,
+    "rejected_low_signal": 0,
+    "rows_with_redactions": 0,
+    "redactions_applied": 0,
+    "post_dedup_rows": 200,
+    "category_counts": {
+      "coverage": 200
+    },
+    "outcome_counts": {
+      "unknown": 200
+    }
+  }
+}

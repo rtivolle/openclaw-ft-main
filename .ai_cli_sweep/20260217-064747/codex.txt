@@ -1,0 +1,1 @@
+codex detected but OPENAI_API_KEY is not set; skipping.

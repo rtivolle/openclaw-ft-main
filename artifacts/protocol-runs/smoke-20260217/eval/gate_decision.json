@@ -1,0 +1,18 @@
+{
+  "timestamp_utc": "smoke-20260217",
+  "run_dir": "artifacts/protocol-runs/smoke-20260217",
+  "dataset_manifest": "artifacts/protocol-runs/smoke-20260217/dataset/dataset_manifest.json",
+  "eval_result": "artifacts/protocol-runs/smoke-20260217/eval/eval_results.json",
+  "thresholds": {
+    "min_delta_exact_match": 0.05,
+    "min_delta_keyword_recall": 0.05
+  },
+  "checks": {
+    "dataset_min_examples_ok": true,
+    "dataset_redaction_ok": true,
+    "exact_delta_ok": false,
+    "keyword_recall_delta_ok": false
+  },
+  "is_real_improvement": false,
+  "promote": false
+}

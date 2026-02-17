@@ -1,0 +1,1 @@
+claude detected but non-interactive invocation is not standardized; see claude.help.txt

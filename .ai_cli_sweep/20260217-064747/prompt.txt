@@ -1,0 +1,11 @@
+Goal: Create a full, execution-ready local training protocol for OpenCode/OpenClaw agents in this repo.
+Context:
+- Repo already has data generation, QLoRA training, and eval scripts.
+- Need end-to-end dataset creation, quality gates, training/eval gates, and daily loop.
+- Must be practical for single-GPU 12-24GB setups.
+Files: README.md, scripts/generate_openclaw_examples.py, scripts/train_qlora_12gb.py, scripts/eval_baseline_vs_adapter.py, configs/qlora_12gb.env
+Constraints:
+- Keep implementation coherent and lightweight.
+- Add runnable artifacts (docs + config/template + automation script) not just prose.
+- Avoid secrets and external paid dependencies.
+Output: Minimal concrete patch plan with file-level changes and acceptance criteria.
