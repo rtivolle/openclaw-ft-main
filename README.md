@@ -1,3 +1,13 @@
+---
+title: OpenClaw Dataset Builder
+emoji: 🛠️
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # OpenCode/OpenClaw Local Training Protocol
 
 ## Goal
@@ -62,6 +72,8 @@ This repo includes a helper script for `hf` CLI workflows:
 - `scripts/hf_cli_workflow.sh login`: authenticate with Hugging Face.
 - `scripts/hf_cli_workflow.sh import ...`: download dataset repos locally.
 - `scripts/hf_cli_workflow.sh run-job ...`: launch remote Hugging Face Jobs.
+- `scripts/hf_cli_workflow.sh run-gpu-task ...`: launch the training protocol as a GPU Job.
+- `scripts/hf_jobs_tui.py`: terminal UI for dataset creation, model pull, train, test, and HF Jobs operations.
 
 Quick start:
 
@@ -84,6 +96,40 @@ scripts/hf_cli_workflow.sh run-job python:3.12 -- python -c "print('hello from h
 scripts/hf_cli_workflow.sh ps -a
 scripts/hf_cli_workflow.sh logs <job_id>
 ```
+
+Run a GPU training protocol job:
+
+```bash
+scripts/hf_cli_workflow.sh run-gpu-task \
+  --repo-url https://huggingface.co/spaces/<user>/<space-name> \
+  --ref main \
+  --flavor l4x1 \
+  --protocol-env configs/protocol.env \
+  --train-config configs/qlora_12gb.env \
+  --detach
+```
+
+This command uses `hf jobs run --secrets HF_TOKEN`, clones your repo in the
+remote container, installs dependencies, and executes:
+
+```bash
+python scripts/run_training_protocol.py --protocol-env <path>
+```
+
+Launch the TUI:
+
+```bash
+python3 scripts/hf_jobs_tui.py
+```
+
+TUI covers:
+
+- Hugging Face auth status/login
+- Model pull (`hf download`)
+- Dataset creation (`fetch_hf_dataset.py`, `build_protocol_dataset.py`)
+- Local train/test (`train_qlora_12gb.py`, `eval_baseline_vs_adapter.py`)
+- Full local protocol (`run_training_protocol.py`)
+- Remote jobs submit/list/logs/inspect/cancel
 
 ## Multi-Disk Loading
 
@@ -118,3 +164,20 @@ And dataset gates in `dataset_manifest.json` must pass:
 2. Run `scripts/run_training_protocol.py`.
 3. Review `gate_decision.json`.
 4. If blocked, add hard counterexamples and rerun.
+
+## Deploy as a Hugging Face Space
+
+This repo is configured as a Docker Space. The Space UI runs `app.py`, which
+generates OpenClaw-format synthetic datasets in-browser.
+
+1. Create a new Hugging Face Space and choose **Docker** SDK.
+2. Push this repository to the Space:
+   - `git remote add space https://huggingface.co/spaces/<user>/<space-name>`
+   - `git push space main`
+3. Wait for the build to finish. The app is served on port `7860`.
+
+Space runtime files added for deployment:
+
+- `Dockerfile`
+- `space_requirements.txt`
+- `app.py`

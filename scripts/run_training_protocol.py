@@ -28,6 +28,7 @@ def run_command(cmd: list[str], env: dict[str, str]) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run full OpenCode/OpenClaw training protocol.")
     parser.add_argument("--protocol-env", default="configs/protocol.env")
+    parser.add_argument("--train-config", default="", help="Override qlora env config path.")
     parser.add_argument("--timestamp", default="")
     parser.add_argument("--skip-train", action="store_true")
     parser.add_argument("--skip-eval", action="store_true")
@@ -137,8 +138,11 @@ def main() -> None:
     dataset_duration = time.time() - t0
     print(f"Dataset build completed in {dataset_duration:.1f}s")
 
+    train_config_path = args.train_config or protocol_env.get("TRAIN_CONFIG", "configs/qlora_12gb.env")
+    print(f"Using train config: {train_config_path}")
+
     training_env = dict(merged_env)
-    training_env.update(parse_env_file(Path(protocol_env.get("TRAIN_CONFIG", "configs/qlora_12gb.env"))))
+    training_env.update(parse_env_file(Path(train_config_path)))
     training_env["BASE_MODEL"] = protocol_env.get("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct")
     training_env["TRAIN_FILE"] = str(train_file)
     training_env["VAL_FILE"] = str(val_file)

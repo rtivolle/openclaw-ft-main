@@ -10,6 +10,7 @@ Usage:
   scripts/hf_cli_workflow.sh login
   scripts/hf_cli_workflow.sh import <dataset_repo> <local_dir> [--revision REV] [--include PATTERN]
   scripts/hf_cli_workflow.sh run-job <image> -- <command...> [--flavor FLAVOR] [--namespace NS] [--detach]
+  scripts/hf_cli_workflow.sh run-gpu-task --repo-url URL [--ref REF] [--flavor FLAVOR] [--protocol-env PATH] [--train-config PATH] [--timeout DUR] [--namespace NS] [--detach] [--skip-train] [--skip-eval] [--skip-hf-fetch] [--skip-local-gen]
   scripts/hf_cli_workflow.sh ps [-a]
   scripts/hf_cli_workflow.sh logs <job_id>
   scripts/hf_cli_workflow.sh inspect <job_id>
@@ -20,6 +21,7 @@ Examples:
   scripts/hf_cli_workflow.sh login
   scripts/hf_cli_workflow.sh import HuggingFaceH4/ultrachat_200k data/hf/ultrachat --include "*.jsonl"
   scripts/hf_cli_workflow.sh run-job python:3.12 -- python -c "print('hello from hf jobs')" --flavor cpu-basic --detach
+  scripts/hf_cli_workflow.sh run-gpu-task --repo-url https://huggingface.co/spaces/<user>/<space-repo> --flavor l4x1 --detach
 EOF
 }
 
@@ -161,6 +163,129 @@ case "$sub" in
     fi
     cmd+=("$image")
     cmd+=("${cmd_args[@]}")
+    echo "+ ${cmd[*]}"
+    "${cmd[@]}"
+    ;;
+
+  run-gpu-task)
+    need_hf
+    repo_url=""
+    repo_ref="main"
+    flavor="l4x1"
+    namespace=""
+    timeout=""
+    detach=false
+    protocol_env="configs/protocol.env"
+    train_config="configs/qlora_12gb.env"
+    skip_train=false
+    skip_eval=false
+    skip_hf_fetch=false
+    skip_local_gen=false
+
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --repo-url)
+          repo_url="${2:-}"
+          shift 2
+          ;;
+        --ref)
+          repo_ref="${2:-}"
+          shift 2
+          ;;
+        --flavor)
+          flavor="${2:-}"
+          shift 2
+          ;;
+        --namespace)
+          namespace="${2:-}"
+          shift 2
+          ;;
+        --timeout)
+          timeout="${2:-}"
+          shift 2
+          ;;
+        --protocol-env)
+          protocol_env="${2:-}"
+          shift 2
+          ;;
+        --train-config)
+          train_config="${2:-}"
+          shift 2
+          ;;
+        --skip-train)
+          skip_train=true
+          shift
+          ;;
+        --skip-eval)
+          skip_eval=true
+          shift
+          ;;
+        --skip-hf-fetch)
+          skip_hf_fetch=true
+          shift
+          ;;
+        --skip-local-gen)
+          skip_local_gen=true
+          shift
+          ;;
+        --detach)
+          detach=true
+          shift
+          ;;
+        *)
+          echo "Unknown option for run-gpu-task: $1" >&2
+          exit 1
+          ;;
+      esac
+    done
+
+    if [[ -z "$repo_url" ]]; then
+      echo "run-gpu-task requires --repo-url <URL>" >&2
+      exit 1
+    fi
+
+    train_flags=()
+    if [[ "$skip_train" == true ]]; then
+      train_flags+=(--skip-train)
+    fi
+    if [[ "$skip_eval" == true ]]; then
+      train_flags+=(--skip-eval)
+    fi
+    if [[ "$skip_hf_fetch" == true ]]; then
+      train_flags+=(--skip-hf-fetch)
+    fi
+    if [[ "$skip_local_gen" == true ]]; then
+      train_flags+=(--skip-local-gen)
+    fi
+
+    remote_cmd=$(cat <<EOF
+set -euo pipefail
+python -m pip install --no-cache-dir --upgrade pip
+python -m pip install --no-cache-dir huggingface_hub[cli]
+mkdir -p /workspace
+cd /workspace
+if ! command -v git >/dev/null 2>&1; then
+  apt-get update && apt-get install -y --no-install-recommends git
+fi
+rm -rf /workspace/repo
+git clone --depth 1 --branch '$repo_ref' '$repo_url' /workspace/repo
+cd /workspace/repo
+python -m pip install --no-cache-dir -r requirements.txt
+python scripts/run_training_protocol.py --protocol-env '$protocol_env' --train-config '$train_config' ${train_flags[*]}
+EOF
+)
+
+    cmd=(hf jobs run --secrets HF_TOKEN --flavor "$flavor")
+    if [[ -n "$namespace" ]]; then
+      cmd+=(--namespace "$namespace")
+    fi
+    if [[ -n "$timeout" ]]; then
+      cmd+=(--timeout "$timeout")
+    fi
+    if [[ "$detach" == true ]]; then
+      cmd+=(--detach)
+    fi
+    cmd+=(python:3.12 bash -lc "$remote_cmd")
     echo "+ ${cmd[*]}"
     "${cmd[@]}"
     ;;
