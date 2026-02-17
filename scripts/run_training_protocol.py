@@ -33,6 +33,7 @@ def main() -> None:
     parser.add_argument("--skip-eval", action="store_true")
     parser.add_argument("--skip-hf-fetch", action="store_true", help="Skip downloading HuggingFace datasets.")
     parser.add_argument("--skip-local-gen", action="store_true", help="Skip local model data generation.")
+    parser.add_argument("--skip-cli-gen", action="store_true", help="Skip CLI-based data generation.")
     args = parser.parse_args()
 
     protocol_env = parse_env_file(Path(args.protocol_env))
@@ -81,6 +82,18 @@ def main() -> None:
         print("=== Generating training data with local model ===")
         run_command(local_gen_cmd, merged_env)
 
+    # --- Optional: Generate data with CLI tools (Gemini + Codex) ---
+    cli_gen_file = protocol_env.get("CLI_GEN_FILE", "data/cli_generated.jsonl")
+    if not args.skip_cli_gen:
+        cli_gen_cmd = [
+            "python3", "scripts/generate_from_cli.py",
+            "--count", protocol_env.get("CLI_GEN_COUNT", "100"),
+            "--out", cli_gen_file,
+            "--seed", protocol_env.get("SEED", "42"),
+        ]
+        print("=== Generating training data with CLI tools ===")
+        run_command(cli_gen_cmd, merged_env)
+
     # --- Build dataset ---
     build_cmd = [
         "python3",
@@ -93,6 +106,7 @@ def main() -> None:
         protocol_env.get("ADVERSARIAL_FILE", "data/adversarial.jsonl"),
         "--hf-file", hf_file,
         "--promodel-file", local_gen_file,
+        "--cli-file", cli_gen_file,
         "--target-examples",
         protocol_env.get("TARGET_EXAMPLES", "20000"),
         "--min-examples",

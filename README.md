@@ -54,6 +54,37 @@ python3 scripts/run_training_protocol.py --protocol-env configs/protocol.env
 
 Use `--skip-train` or `--skip-eval` for partial pipeline runs.
 
+## Hugging Face CLI on Debian (dataset import + jobs)
+
+This repo includes a helper script for `hf` CLI workflows:
+
+- `scripts/hf_cli_workflow.sh setup`: install `hf` CLI.
+- `scripts/hf_cli_workflow.sh login`: authenticate with Hugging Face.
+- `scripts/hf_cli_workflow.sh import ...`: download dataset repos locally.
+- `scripts/hf_cli_workflow.sh run-job ...`: launch remote Hugging Face Jobs.
+
+Quick start:
+
+```bash
+chmod +x scripts/hf_cli_workflow.sh
+scripts/hf_cli_workflow.sh setup
+scripts/hf_cli_workflow.sh login
+```
+
+Import a dataset repo:
+
+```bash
+scripts/hf_cli_workflow.sh import HuggingFaceH4/ultrachat_200k data/hf/ultrachat --include "*.jsonl"
+```
+
+Run a remote job:
+
+```bash
+scripts/hf_cli_workflow.sh run-job python:3.12 -- python -c "print('hello from hf jobs')" --flavor cpu-basic --detach
+scripts/hf_cli_workflow.sh ps -a
+scripts/hf_cli_workflow.sh logs <job_id>
+```
+
 ## Multi-Disk Loading
 
 In `configs/qlora_12gb.env`, set shard lists across disks:

@@ -7,3 +7,4 @@ datasets
 accelerate
 tqdm
 flash-attn
+huggingface_hub[cli]

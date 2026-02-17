@@ -140,6 +140,7 @@ def main() -> None:
     parser.add_argument("--adversarial-file", default="data/adversarial.jsonl")
     parser.add_argument("--hf-file", default="")
     parser.add_argument("--promodel-file", default="")
+    parser.add_argument("--cli-file", default="")
     parser.add_argument("--target-examples", type=int, default=20000)
     parser.add_argument("--min-examples", type=int, default=2000)
     parser.add_argument("--val-ratio", type=float, default=0.1)
@@ -215,7 +216,7 @@ def main() -> None:
                 stats=stats,
             )
 
-    # Pro-model generated data (treated as synthetic)
+    # Pro-model / local-model generated data (treated as synthetic)
     if args.promodel_file:
         promodel_rows = read_optional_jsonl(Path(args.promodel_file))
         if promodel_rows:
@@ -223,6 +224,19 @@ def main() -> None:
                 rows=promodel_rows,
                 bucket="synthetic",
                 default_source="promodel",
+                default_category="coverage",
+                parsed=parsed,
+                stats=stats,
+            )
+
+    # CLI-generated data (treated as synthetic)
+    if args.cli_file:
+        cli_rows = read_optional_jsonl(Path(args.cli_file))
+        if cli_rows:
+            add_rows(
+                rows=cli_rows,
+                bucket="synthetic",
+                default_source="cli",
                 default_category="coverage",
                 parsed=parsed,
                 stats=stats,
