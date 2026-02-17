@@ -43,17 +43,12 @@ def supported_sft_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in kwargs.items() if key in params}
 
 
-def format_example(example: dict[str, Any]) -> dict[str, str]:
-    parts = []
-    for item in example["messages"]:
-        role = item["role"].strip().lower()
-        content = item["content"].strip()
-        parts.append(f"<|{role}|>\n{content}\n")
-    return {"text": "".join(parts)}
+def format_example(example: dict[str, Any], tokenizer: Any) -> dict[str, str]:
+    return {"text": tokenizer.apply_chat_template(example["messages"], tokenize=False, add_generation_prompt=False)}
 
 
-def pick_safe_runtime(batch_size: int, grad_accum: int, max_length: int) -> tuple[int, int, int]:
-    free_bytes, total_bytes = torch.cuda.mem_get_info(0)
+def pick_safe_runtime(batch_size: int, grad_accum: int, max_length: int, device_idx: int = 0) -> tuple[int, int, int]:
+    free_bytes, total_bytes = torch.cuda.mem_get_info(device_idx)
     free_gb = free_bytes / (1024**3)
     total_gb = total_bytes / (1024**3)
 
@@ -97,37 +92,40 @@ def main() -> None:
     print(f"Dataset map workers: {map_num_proc}")
 
     dataset = load_dataset("json", data_files={"train": train_files, "validation": val_files})
+    tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
     dataset = dataset.map(
-        format_example,
+        lambda x: format_example(x, tokenizer),
         remove_columns=dataset["train"].column_names,
         num_proc=map_num_proc,
         desc="Formatting conversation examples",
     )
 
-    tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
-
+    compute_dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     quant = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_compute_dtype=compute_dtype,
         bnb_4bit_use_double_quant=True,
     )
-    print("Quantization mode: Q4 (4-bit, NF4)")
+    print(f"Quantization mode: Q4 (4-bit, NF4, compute={compute_dtype})")
 
     req_batch = env_int("PER_DEVICE_TRAIN_BATCH_SIZE", 1)
     req_grad = env_int("GRADIENT_ACCUMULATION_STEPS", 16)
     req_len = env_int("MAX_SEQ_LENGTH", 1536)
-    safe_batch, safe_grad, safe_len = pick_safe_runtime(req_batch, req_grad, req_len)
+    device_idx = env_int("CUDA_DEVICE_INDEX", 0)
+    safe_batch, safe_grad, safe_len = pick_safe_runtime(req_batch, req_grad, req_len, device_idx)
 
     model = AutoModelForCausalLM.from_pretrained(
         base_model,
         quantization_config=quant,
-        torch_dtype=torch.float16,
+        torch_dtype=compute_dtype,
         device_map="auto",
         trust_remote_code=True,
         low_cpu_mem_usage=True,
+        attn_implementation="flash_attention_2",
     )
     model.config.use_cache = False
 
@@ -157,9 +155,13 @@ def main() -> None:
         "max_steps": env_int("MAX_STEPS", -1),
         "per_device_train_batch_size": safe_batch,
         "gradient_accumulation_steps": safe_grad,
+        "gradient_checkpointing": True,
+        "gradient_checkpointing_kwargs": {"use_reentrant": False},
+        "max_grad_norm": env_float("MAX_GRAD_NORM", 1.0),
         "learning_rate": env_float("LEARNING_RATE", 2e-4),
         "warmup_ratio": env_float("WARMUP_RATIO", 0.03),
         "lr_scheduler_type": env("LR_SCHEDULER_TYPE", "cosine"),
+        "neftune_noise_alpha": env_float("NEFTUNE_NOISE_ALPHA", 5.0),
         "logging_steps": 10,
         "eval_steps": env_int("EVAL_STEPS", 200),
         "save_steps": env_int("SAVE_STEPS", 200),

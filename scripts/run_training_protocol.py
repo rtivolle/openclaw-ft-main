@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -86,7 +87,10 @@ def main() -> None:
         "--min-redaction-rate",
         protocol_env.get("DATASET_MANIFEST_MIN_REDACTION_RATE", "0.0"),
     ]
+    t0 = time.time()
     run_command(build_cmd, merged_env)
+    dataset_duration = time.time() - t0
+    print(f"Dataset build completed in {dataset_duration:.1f}s")
 
     training_env = dict(merged_env)
     training_env.update(parse_env_file(Path(protocol_env.get("TRAIN_CONFIG", "configs/qlora_12gb.env"))))
@@ -95,9 +99,14 @@ def main() -> None:
     training_env["VAL_FILE"] = str(val_file)
     training_env["OUTPUT_DIR"] = str(model_out)
 
+    train_duration = 0.0
     if not args.skip_train:
+        t1 = time.time()
         run_command(["python3", "scripts/train_qlora_12gb.py"], training_env)
+        train_duration = time.time() - t1
+        print(f"Training completed in {train_duration:.1f}s")
 
+    eval_duration = 0.0
     if not args.skip_eval:
         eval_cmd = [
             "python3",
@@ -113,7 +122,10 @@ def main() -> None:
             "--out",
             str(eval_out),
         ]
+        t2 = time.time()
         run_command(eval_cmd, training_env)
+        eval_duration = time.time() - t2
+        print(f"Evaluation completed in {eval_duration:.1f}s")
 
     eval_result = json.loads(eval_out.read_text(encoding="utf-8")) if eval_out.exists() else {}
     min_exact = float(protocol_env.get("GATE_MIN_DELTA_EXACT_MATCH", "0.05"))
@@ -121,9 +133,10 @@ def main() -> None:
     delta = eval_result.get("delta", {})
     exact_ok = float(delta.get("exact_match", -1.0)) >= min_exact
     recall_ok = float(delta.get("keyword_recall", -1.0)) >= min_recall
-    promotion_pass = exact_ok and recall_ok
 
     manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
+    dataset_ok = manifest.get("build", {}).get("min_example_ok", False) and manifest.get("build", {}).get("redaction_ok", False)
+    promotion_pass = exact_ok and recall_ok and dataset_ok
     gate = {
         "timestamp_utc": ts,
         "run_dir": str(run_dir),
@@ -141,6 +154,11 @@ def main() -> None:
         },
         "is_real_improvement": eval_result.get("is_real_improvement", False),
         "promote": promotion_pass,
+        "durations_seconds": {
+            "dataset_build": round(dataset_duration, 1),
+            "training": round(train_duration, 1),
+            "evaluation": round(eval_duration, 1),
+        },
     }
     gate_out.write_text(json.dumps(gate, indent=2), encoding="utf-8")
     print(f"Wrote gate decision: {gate_out}")

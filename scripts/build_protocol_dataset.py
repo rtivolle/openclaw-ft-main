@@ -237,7 +237,8 @@ def main() -> None:
     )
 
     if len(selected) < target:
-        remainder_pool = [row for row in deduped if row not in selected]
+        selected_fps = {fingerprint(row["messages"]) for row in selected}
+        remainder_pool = [row for row in deduped if fingerprint(row["messages"]) not in selected_fps]
         needed = min(target - len(selected), len(remainder_pool))
         if needed > 0:
             selected += random.sample(remainder_pool, needed)
