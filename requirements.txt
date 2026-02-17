@@ -8,3 +8,5 @@ accelerate
 tqdm
 flash-attn
 huggingface_hub[cli]
+gradio==5.15.0
+requests>=2.31.0
