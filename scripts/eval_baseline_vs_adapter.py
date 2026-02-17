@@ -96,14 +96,47 @@ def evaluate(model: Any, tokenizer: Any, rows: list[dict[str, Any]], max_new_tok
     }
 
 
+def _detect_device() -> str:
+    """Auto-detect the best available accelerator."""
+    try:
+        import torch_xla.core.xla_model as xm
+        device = str(xm.xla_device())
+        print(f"🔥 Using TPU device: {device}")
+        return device
+    except (ImportError, RuntimeError):
+        pass
+
+    if torch.cuda.is_available():
+        print(f"Using CUDA: {torch.cuda.get_device_name(0)}")
+        return "cuda"
+
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        print("Using Apple MPS")
+        return "mps"
+
+    print("⚠ No accelerator found, using CPU")
+    return "cpu"
+
+
 def load_base(base_model: str) -> tuple[Any, Any]:
-    if not torch.cuda.is_available():
-        raise RuntimeError("CUDA is required for evaluation. No CUDA device detected.")
+    device = _detect_device()
 
     tokenizer = AutoTokenizer.from_pretrained(base_model, use_fast=True)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(base_model, device_map="auto", torch_dtype="auto", trust_remote_code=True)
+
+    if device.startswith("xla") or device.startswith("tpu"):
+        # TPU: load in BF16, move to XLA device (no device_map)
+        import torch_xla.core.xla_model as xm
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model, torch_dtype=torch.bfloat16, trust_remote_code=True
+        ).to(xm.xla_device())
+    else:
+        # CUDA / MPS / CPU: use device_map for automatic placement
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model, device_map="auto", torch_dtype="auto", trust_remote_code=True
+        )
+
     return model, tokenizer
 
 

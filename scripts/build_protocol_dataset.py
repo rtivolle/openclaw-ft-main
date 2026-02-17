@@ -138,6 +138,8 @@ def main() -> None:
     parser.add_argument("--raw-trace-glob", default="data/raw_traces/*.jsonl")
     parser.add_argument("--synthetic-file", default="data/train_200.jsonl")
     parser.add_argument("--adversarial-file", default="data/adversarial.jsonl")
+    parser.add_argument("--hf-file", default="")
+    parser.add_argument("--promodel-file", default="")
     parser.add_argument("--target-examples", type=int, default=20000)
     parser.add_argument("--min-examples", type=int, default=2000)
     parser.add_argument("--val-ratio", type=float, default=0.1)
@@ -199,6 +201,32 @@ def main() -> None:
             parsed=parsed,
             stats=stats,
         )
+
+    # HuggingFace data (treated as synthetic)
+    if args.hf_file:
+        hf_rows = read_optional_jsonl(Path(args.hf_file))
+        if hf_rows:
+            add_rows(
+                rows=hf_rows,
+                bucket="synthetic",
+                default_source="hf",
+                default_category="coverage",
+                parsed=parsed,
+                stats=stats,
+            )
+
+    # Pro-model generated data (treated as synthetic)
+    if args.promodel_file:
+        promodel_rows = read_optional_jsonl(Path(args.promodel_file))
+        if promodel_rows:
+            add_rows(
+                rows=promodel_rows,
+                bucket="synthetic",
+                default_source="promodel",
+                default_category="coverage",
+                parsed=parsed,
+                stats=stats,
+            )
 
     source_limited: dict[str, int] = {}
     filtered: list[dict[str, Any]] = []

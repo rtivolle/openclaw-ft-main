@@ -31,6 +31,8 @@ def main() -> None:
     parser.add_argument("--timestamp", default="")
     parser.add_argument("--skip-train", action="store_true")
     parser.add_argument("--skip-eval", action="store_true")
+    parser.add_argument("--skip-hf-fetch", action="store_true", help="Skip downloading HuggingFace datasets.")
+    parser.add_argument("--skip-local-gen", action="store_true", help="Skip local model data generation.")
     args = parser.parse_args()
 
     protocol_env = parse_env_file(Path(args.protocol_env))
@@ -53,6 +55,33 @@ def main() -> None:
     eval_out = eval_dir / "eval_results.json"
     gate_out = eval_dir / "gate_decision.json"
 
+    # --- Optional: Fetch HuggingFace datasets ---
+    hf_file = protocol_env.get("HF_FILE", "data/hf_combined.jsonl")
+    if not args.skip_hf_fetch:
+        hf_cmd = [
+            "python3", "scripts/fetch_hf_dataset.py",
+            "--datasets", protocol_env.get("HF_DATASETS", "Open-Orca/OpenOrca,teknium/OpenHermes-2.5,sahil2801/CodeAlpaca-20k"),
+            "--max-per-dataset", protocol_env.get("HF_MAX_PER_DATASET", "2000"),
+            "--out", hf_file,
+            "--seed", protocol_env.get("SEED", "42"),
+        ]
+        print("=== Fetching HuggingFace datasets ===")
+        run_command(hf_cmd, merged_env)
+
+    # --- Optional: Generate data with local model ---
+    local_gen_file = protocol_env.get("LOCAL_GEN_FILE", "data/local_generated.jsonl")
+    if not args.skip_local_gen:
+        local_gen_cmd = [
+            "python3", "scripts/generate_from_local_model.py",
+            "--model", protocol_env.get("BASE_MODEL", "Qwen/Qwen2.5-Coder-7B-Instruct"),
+            "--count", protocol_env.get("LOCAL_GEN_COUNT", "200"),
+            "--out", local_gen_file,
+            "--seed", protocol_env.get("SEED", "42"),
+        ]
+        print("=== Generating training data with local model ===")
+        run_command(local_gen_cmd, merged_env)
+
+    # --- Build dataset ---
     build_cmd = [
         "python3",
         "scripts/build_protocol_dataset.py",
@@ -62,6 +91,8 @@ def main() -> None:
         protocol_env.get("SYNTHETIC_FILE", "data/train_200.jsonl"),
         "--adversarial-file",
         protocol_env.get("ADVERSARIAL_FILE", "data/adversarial.jsonl"),
+        "--hf-file", hf_file,
+        "--promodel-file", local_gen_file,
         "--target-examples",
         protocol_env.get("TARGET_EXAMPLES", "20000"),
         "--min-examples",
