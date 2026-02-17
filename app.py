@@ -323,4 +323,4 @@ This UI runs the local template generator from `scripts/generate_openclaw_exampl
 
 
 demo.queue(default_concurrency_limit=1)
-demo.launch(server_name="0.0.0.0", server_port=7860)
+demo.launch(server_name="0.0.0.0", server_port=7860, show_api=False)
